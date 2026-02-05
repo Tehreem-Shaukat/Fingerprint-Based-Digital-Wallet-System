@@ -12,7 +12,8 @@
  * NO fingerprint data is accessed or stored - only cryptographic credentials
  */
 
-const API_BASE = 'http://localhost:3000/api';
+// Dynamic API_BASE - works on both localhost and Railway.app
+const API_BASE = `${window.location.origin}/api`;
 
 // Application State
 let currentUser = null;
@@ -417,7 +418,7 @@ async function handleRegister(e) {
             });
         } catch (fetchError) {
             console.error('Network error:', fetchError);
-            throw new Error('Cannot connect to server. Please make sure the backend server is running on http://localhost:3000');
+            throw new Error('❌ Cannot connect to server. Please make sure the backend server is running and accessible.');
         }
 
         if (!response.ok) {
@@ -492,7 +493,7 @@ async function handleRegister(e) {
             });
         } catch (fetchError) {
             console.error('Network error:', fetchError);
-            throw new Error('Cannot connect to server. Please make sure the backend server is running on http://localhost:3000');
+            throw new Error('❌ Cannot connect to server. Please make sure the backend server is running and accessible.');
         }
 
         if (!completeResponse.ok) {
@@ -562,7 +563,7 @@ async function handleLogin(e) {
             });
         } catch (fetchError) {
             console.error('Network error:', fetchError);
-            throw new Error('Cannot connect to server. Please make sure the backend server is running on http://localhost:3000');
+            throw new Error('❌ Cannot connect to server. Please make sure the backend server is running and accessible.');
         }
 
         if (!response.ok) {
@@ -636,7 +637,7 @@ async function handleLogin(e) {
             });
         } catch (fetchError) {
             console.error('Network error:', fetchError);
-            throw new Error('Cannot connect to server. Please make sure the backend server is running on http://localhost:3000');
+            throw new Error('❌ Cannot connect to server. Please make sure the backend server is running and accessible.');
         }
 
         if (!completeResponse.ok) {
