@@ -71,6 +71,33 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
     if (headerLogoutBtn) headerLogoutBtn.addEventListener('click', handleLogout);
     
+    // Hamburger menu toggle
+    const hamburgerBtn = document.getElementById('hamburgerBtn');
+    const navMobile = document.getElementById('navMobile');
+    if (hamburgerBtn) {
+        hamburgerBtn.addEventListener('click', () => {
+            hamburgerBtn.classList.toggle('active');
+            navMobile.classList.toggle('active');
+        });
+    }
+
+    // Navigation link handlers for desktop and mobile
+    document.querySelectorAll('.nav-link, .nav-link-mobile').forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            const page = link.getAttribute('data-page');
+            if (page) {
+                // Close mobile menu if open
+                if (hamburgerBtn && hamburgerBtn.classList.contains('active')) {
+                    hamburgerBtn.classList.remove('active');
+                    navMobile.classList.remove('active');
+                }
+                // Navigate to the page
+                navigateToPage(page);
+            }
+        });
+    });
+    
     // Navigation listeners
     document.querySelectorAll('.nav-item').forEach(item => {
         item.addEventListener('click', (e) => {
@@ -364,9 +391,14 @@ function navigateToPage(pageName) {
         page.classList.remove('active');
     });
     
-    // Remove active class from all nav items
+    // Remove active class from all nav items (sidebar)
     document.querySelectorAll('.nav-item').forEach(item => {
         item.classList.remove('active');
+    });
+
+    // Remove active class from all header navigation links
+    document.querySelectorAll('.nav-link, .nav-link-mobile').forEach(link => {
+        link.classList.remove('active');
     });
     
     // Show selected page
@@ -375,11 +407,18 @@ function navigateToPage(pageName) {
         page.classList.add('active');
     }
     
-    // Activate nav item
+    // Activate nav item in sidebar
     const navItem = document.querySelector(`[data-page="${pageName}"]`);
     if (navItem) {
         navItem.classList.add('active');
     }
+
+    // Activate header navigation links
+    document.querySelectorAll('.nav-link, .nav-link-mobile').forEach(link => {
+        if (link.getAttribute('data-page') === pageName) {
+            link.classList.add('active');
+        }
+    });
     
     // Update send form total
     if (pageName === 'send') {
