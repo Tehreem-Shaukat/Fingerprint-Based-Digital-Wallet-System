@@ -98,14 +98,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     });
     
-    // Navigation listeners
-    document.querySelectorAll('.nav-item').forEach(item => {
-        item.addEventListener('click', (e) => {
-            e.preventDefault();
-            const page = item.getAttribute('data-page');
-            if (page) navigateToPage(page);
-        });
-    });
+    // Sidebar removed; header/mobile nav links handle navigation
     
     // Quick action buttons
     document.querySelectorAll('.action-btn').forEach(btn => {
@@ -391,10 +384,8 @@ function navigateToPage(pageName) {
         page.classList.remove('active');
     });
     
-    // Remove active class from all nav items (sidebar)
-    document.querySelectorAll('.nav-item').forEach(item => {
-        item.classList.remove('active');
-    });
+    // Remove active class from header navigation links
+    // (sidebar removed)
 
     // Remove active class from all header navigation links
     document.querySelectorAll('.nav-link, .nav-link-mobile').forEach(link => {
