@@ -66,16 +66,25 @@ function generateChallenge() {
 /**
  * Get the effective domain for WebAuthn RP ID
  * WebAuthn requires rp.id to match the origin domain
- * For development, always use 'localhost' (WebAuthn doesn't accept IP addresses)
  */
 function getEffectiveDomain(req) {
-    // For local development, always use 'localhost'
-    // WebAuthn specification doesn't allow IP addresses (127.0.0.1, etc.)
-    // Users must access via http://localhost:3000 for WebAuthn to work
+    const host = req.get('host') || 'localhost';
     
-    // In production, you would extract the actual domain from the request
-    // For now, we always use 'localhost' for development
-    return 'localhost';
+    // Extract just the domain (remove port if present)
+    const domain = host.split(':')[0];
+    
+    // For localhost, use as-is (WebAuthn accepts localhost)
+    if (domain === 'localhost' || domain === '127.0.0.1') {
+        return domain;
+    }
+    
+    // For Railway and other deployments, use the actual domain
+    // Remove www. prefix if present for consistency
+    if (domain.startsWith('www.')) {
+        return domain.substring(4);
+    }
+    
+    return domain;
 }
 
 /**
@@ -112,7 +121,7 @@ app.post('/api/register/start', (req, res) => {
         challenge: challenge, // Send as base64url string, frontend converts to ArrayBuffer
         rp: {
             name: 'Fingerprint Wallet',
-            id: rpId, // Always 'localhost' for development
+            id: rpId, // Dynamically set based on the domain being accessed
         },
         user: {
             id: Buffer.from(username, 'utf8').toString('base64url'), // Convert to base64url for JSON
@@ -211,7 +220,7 @@ app.post('/api/login/start', (req, res) => {
     // Note: challenge and credential id are sent as base64url strings, frontend converts to ArrayBuffer
     const authOptions = {
         challenge: challenge, // Send as base64url string, frontend converts to ArrayBuffer
-        rpId: rpId, // Always 'localhost' for development
+        rpId: rpId, // Dynamically set based on the domain being accessed
         allowCredentials: [
             {
                 id: user.credentialId, // Already stored as base64url string
