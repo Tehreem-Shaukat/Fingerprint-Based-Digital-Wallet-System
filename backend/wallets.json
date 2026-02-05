@@ -1,0 +1,50 @@
+{
+  "mikran": {
+    "balance": 0,
+    "address": "0XBWLRCMFU19BF9215116",
+    "transactions": [
+      {
+        "type": "send",
+        "recipient": "tehreem",
+        "amount": 1000,
+        "note": "",
+        "timestamp": "2026-01-26T07:09:38.362Z",
+        "status": "Completed"
+      }
+    ],
+    "createdAt": "2026-01-26T07:07:48.887Z",
+    "updatedAt": "2026-01-26T07:09:38.380Z"
+  },
+  "alpha": {
+    "balance": 0,
+    "address": "0XYWXWAGE19BF92AAD81",
+    "transactions": [
+      {
+        "type": "send",
+        "recipient": "0XBWLRCMFU19BF9215116",
+        "amount": 1000,
+        "note": "",
+        "timestamp": "2026-01-26T07:18:15.772Z",
+        "status": "Completed"
+      }
+    ],
+    "createdAt": "2026-01-26T07:18:02.372Z",
+    "updatedAt": "2026-01-26T07:18:15.778Z"
+  },
+  "tehreem": {
+    "balance": 999,
+    "address": "0XDGVOCMVLBQ19BF93F9EBB",
+    "transactions": [
+      {
+        "type": "send",
+        "recipient": "mikran",
+        "amount": 1,
+        "note": "",
+        "timestamp": "2026-01-26T07:41:28.103Z",
+        "status": "Completed"
+      }
+    ],
+    "createdAt": "2026-01-26T07:40:54.847Z",
+    "updatedAt": "2026-01-26T07:41:28.116Z"
+  }
+}
