@@ -16,6 +16,8 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const cors = require('cors');
+require('dotenv').config();
+const { supabase } = require('./supabase');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -25,33 +27,18 @@ app.use(cors()); // Allow frontend to access backend
 app.use(express.json()); // Parse JSON requests
 app.use(express.static(path.join(__dirname, '../frontend'))); // Serve frontend files
 
-// Storage file path
-const USERS_FILE = path.join(__dirname, 'users.json');
-
-/**
- * Load users from JSON file
- * In production, use a proper database
- */
-function loadUsers() {
+// Helper: get user from Supabase
+async function getUserByUsername(username) {
     try {
-        if (fs.existsSync(USERS_FILE)) {
-            const data = fs.readFileSync(USERS_FILE, 'utf8');
-            return JSON.parse(data);
-        }
-    } catch (error) {
-        console.error('Error loading users:', error);
-    }
-    return {};
-}
-
-/**
- * Save users to JSON file
- */
-function saveUsers(users) {
-    try {
-        fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
-    } catch (error) {
-        console.error('Error saving users:', error);
+        const { data, error } = await supabase
+            .from('users')
+            .select('*')
+            .eq('username', username)
+            .maybeSingle(); // Returns null if no rows, doesn't throw error
+        return { data, error };
+    } catch (err) {
+        console.error('Error fetching user:', err);
+        return { data: null, error: err };
     }
 }
 
@@ -68,38 +55,94 @@ function generateChallenge() {
  * WebAuthn requires rp.id to match the origin domain
  */
 function getEffectiveDomain(req) {
+    // Allow override via environment variable (for production deployments)
+    if (process.env.WEBAUTHN_RP_ID) {
+        console.log('RP ID from env:', process.env.WEBAUTHN_RP_ID);
+        return process.env.WEBAUTHN_RP_ID;
+    }
+
     const host = req.get('host') || 'localhost';
+    const origin = req.get('origin');
     
-    // Extract just the domain (remove port if present)
+    console.log('🔍 WebAuthn RP ID Debug:');
+    console.log('   Host header:', host);
+    console.log('   Origin header:', origin);
+    
+    // Try to extract domain from Origin header first (most reliable)
+    if (origin) {
+        try {
+            const url = new URL(origin);
+            const domain = url.hostname;
+            
+            // For localhost, explicitly allow both HTTP and HTTPS
+            if (domain === 'localhost' || domain === '127.0.0.1') {
+                console.log('   Using localhost RP ID:', domain);
+                return domain;
+            }
+            
+            // For production domains, use hostname from origin
+            let rpId = domain;
+            if (domain.startsWith('www.')) {
+                rpId = domain.substring(4);
+            }
+            
+            console.log('   Using RP ID from Origin:', rpId);
+            return rpId;
+        } catch (err) {
+            console.log('   Could not parse Origin header:', err.message);
+        }
+    }
+    
+    // Fallback to Host header if no Origin
     const domain = host.split(':')[0];
     
-    // For localhost, use as-is (WebAuthn accepts localhost)
+    // For localhost, use as-is
     if (domain === 'localhost' || domain === '127.0.0.1') {
+        console.log('   Using localhost RP ID:', domain);
         return domain;
     }
     
-    // For Railway and other deployments, use the actual domain
-    // Remove www. prefix if present for consistency
+    // For other domains, remove www if present
+    let rpId = domain;
     if (domain.startsWith('www.')) {
-        return domain.substring(4);
+        rpId = domain.substring(4);
     }
     
-    return domain;
+    console.log('   Using RP ID from Host:', rpId);
+    return rpId;
 }
 
 /**
  * Registration Endpoint
  * Step 1: Generate challenge and return registration options
  */
-app.post('/api/register/start', (req, res) => {
+app.post('/api/register/start', async (req, res) => {
     const { username } = req.body;
 
     if (!username) {
         return res.status(400).json({ error: 'Username is required' });
     }
 
-    const users = loadUsers();
-    if (users[username]) {
+    // Check if user already exists in Supabase
+    const { data: existingUser, error: existingError } = await getUserByUsername(username);
+    if (existingError) {
+        console.error('❌ Supabase error checking user:', existingError.message);
+        // Check if error is "no rows returned" (table missing or user not found)
+        if (existingError.code === 'PGRST116' || existingError.message.includes('no rows')) {
+            // This is expected for new users, continue
+        } else if (existingError.message.includes('relation') && existingError.message.includes('does not exist')) {
+            console.error('⚠️  Supabase tables not created yet!');
+            console.error('   Please create the required tables in Supabase dashboard.');
+            console.error('   See SUPABASE_INTEGRATION.md for SQL setup instructions.');
+            return res.status(500).json({ 
+                error: 'Database tables not initialized. Admin must create tables in Supabase.',
+                details: 'See SUPABASE_INTEGRATION.md for setup instructions.'
+            });
+        } else {
+            return res.status(500).json({ error: 'Database error: ' + existingError.message });
+        }
+    }
+    if (existingUser) {
         return res.status(400).json({ error: 'Username already exists' });
     }
 
@@ -164,23 +207,45 @@ app.post('/api/register/complete', async (req, res) => {
     // For academic purposes, we'll do simplified verification
     // In production, you'd verify the attestation and signature properly
     try {
-        // Store the credential ID and public key
-        // We do NOT store fingerprint data - only the cryptographic credential
-        const users = loadUsers();
-        users[username] = {
-            credentialId: credential.id,
-            publicKey: credential.response.publicKey || 'stored', // Simplified for academic project
-            registeredAt: new Date().toISOString(),
-        };
-        saveUsers(users);
+        // Insert user into Supabase users table
+        const { error: insertUserError } = await supabase.from('users').insert([
+            {
+                username,
+                credentialId: credential.id,
+                publicKey: credential.response?.publicKey || 'stored',
+                registeredAt: new Date().toISOString(),
+            },
+        ]);
+
+        if (insertUserError) {
+            console.error('Error inserting user:', insertUserError);
+            return res.status(500).json({ error: 'Registration failed' });
+        }
+
+        // Create a default wallet for the user
+        const { error: insertWalletError } = await supabase.from('wallets').insert([
+            {
+                username,
+                balance: 10000,
+                address: generateWalletAddress(username),
+                transactions: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+            },
+        ]);
+
+        if (insertWalletError) {
+            console.error('Error creating wallet:', insertWalletError);
+            return res.status(500).json({ error: 'Registration failed (wallet)'});
+        }
 
         // Clean up challenge
         delete global.challenges[username];
 
-        res.json({ 
-            success: true, 
+        res.json({
+            success: true,
             message: 'Fingerprint registered successfully!',
-            username 
+            username,
         });
     } catch (error) {
         console.error('Registration error:', error);
@@ -192,15 +257,18 @@ app.post('/api/register/complete', async (req, res) => {
  * Login Endpoint
  * Step 1: Generate challenge and return authentication options
  */
-app.post('/api/login/start', (req, res) => {
+app.post('/api/login/start', async (req, res) => {
     const { username } = req.body;
 
     if (!username) {
         return res.status(400).json({ error: 'Username is required' });
     }
 
-    const users = loadUsers();
-    const user = users[username];
+    const { data: user, error } = await getUserByUsername(username);
+    if (error) {
+        console.error('Supabase error fetching user:', error);
+        return res.status(500).json({ error: 'Internal error' });
+    }
 
     if (!user) {
         return res.status(404).json({ error: 'User not found' });
@@ -217,17 +285,16 @@ app.post('/api/login/start', (req, res) => {
     const rpId = getEffectiveDomain(req);
 
     // WebAuthn authentication options
-    // Note: challenge and credential id are sent as base64url strings, frontend converts to ArrayBuffer
     const authOptions = {
-        challenge: challenge, // Send as base64url string, frontend converts to ArrayBuffer
-        rpId: rpId, // Dynamically set based on the domain being accessed
+        challenge: challenge,
+        rpId: rpId,
         allowCredentials: [
             {
-                id: user.credentialId, // Already stored as base64url string
+                id: user.credentialId,
                 type: 'public-key',
             },
         ],
-        userVerification: 'required', // Require fingerprint scan
+        userVerification: 'required',
         timeout: 60000,
     };
 
@@ -245,8 +312,11 @@ app.post('/api/login/complete', async (req, res) => {
         return res.status(400).json({ error: 'Username and credential are required' });
     }
 
-    const users = loadUsers();
-    const user = users[username];
+    const { data: user, error: userError } = await getUserByUsername(username);
+    if (userError) {
+        console.error('Supabase error fetching user:', userError);
+        return res.status(500).json({ error: 'Internal error' });
+    }
 
     if (!user) {
         return res.status(404).json({ error: 'User not found' });
@@ -269,8 +339,8 @@ app.post('/api/login/complete', async (req, res) => {
         // Clean up challenge
         delete global.challenges[username];
 
-        res.json({ 
-            success: true, 
+        res.json({
+            success: true,
             message: 'Login successful!',
             username,
             loginTime: new Date().toISOString(),
@@ -284,129 +354,181 @@ app.post('/api/login/complete', async (req, res) => {
 /**
  * Get user info (for demo purposes)
  */
-app.get('/api/user/:username', (req, res) => {
+app.get('/api/user/:username', async (req, res) => {
     const { username } = req.params;
-    const users = loadUsers();
-    const user = users[username];
-
-    if (!user) {
-        return res.status(404).json({ error: 'User not found' });
+    const { data: user, error } = await getUserByUsername(username);
+    if (error) {
+        console.error('Supabase error fetching user:', error);
+        return res.status(500).json({ error: 'Internal error' });
     }
+    if (!user) return res.status(404).json({ error: 'User not found' });
 
-    // Don't expose sensitive data
-    res.json({
-        username,
-        registeredAt: user.registeredAt,
-    });
+    res.json({ username, registeredAt: user.registeredAt });
 });
 
 /**
  * Wallet Endpoints
  */
 
-// Wallets storage file
-const WALLETS_FILE = path.join(__dirname, 'wallets.json');
-
-/**
- * Load wallets from JSON file
- */
-function loadWallets() {
+// Helper: get wallet from Supabase
+async function getWalletByUsername(username) {
     try {
-        if (fs.existsSync(WALLETS_FILE)) {
-            const data = fs.readFileSync(WALLETS_FILE, 'utf8');
-            return JSON.parse(data);
-        }
-    } catch (error) {
-        console.error('Error loading wallets:', error);
-    }
-    return {};
-}
-
-/**
- * Save wallets to JSON file
- */
-function saveWallets(wallets) {
-    try {
-        fs.writeFileSync(WALLETS_FILE, JSON.stringify(wallets, null, 2));
-    } catch (error) {
-        console.error('Error saving wallets:', error);
+        const { data, error } = await supabase
+            .from('wallets')
+            .select('*')
+            .eq('username', username)
+            .maybeSingle(); // Returns null if no rows, doesn't throw error
+        return { data, error };
+    } catch (err) {
+        console.error('Error fetching wallet:', err);
+        return { data: null, error: err };
     }
 }
 
 /**
  * Get wallet data
  */
-app.get('/api/wallet/:username', (req, res) => {
+app.get('/api/wallet/:username', async (req, res) => {
     const { username } = req.params;
-    const wallets = loadWallets();
-    const wallet = wallets[username];
-
-    if (!wallet) {
-        return res.status(404).json({ error: 'Wallet not found' });
+    const { data: wallet, error } = await getWalletByUsername(username);
+    if (error) {
+        console.error('Supabase error fetching wallet:', error);
+        return res.status(500).json({ error: 'Internal error' });
     }
-
+    if (!wallet) return res.status(404).json({ error: 'Wallet not found' });
     res.json(wallet);
 });
 
 /**
  * Create new wallet
  */
-app.post('/api/wallet/create', (req, res) => {
+app.post('/api/wallet/create', async (req, res) => {
     const { username, balance, address, transactions } = req.body;
 
     if (!username) {
         return res.status(400).json({ error: 'Username is required' });
     }
 
-    const wallets = loadWallets();
-    
-    if (wallets[username]) {
-        return res.status(400).json({ error: 'Wallet already exists' });
+    const { data: existingWallet } = await getWalletByUsername(username);
+    if (existingWallet) return res.status(400).json({ error: 'Wallet already exists' });
+
+    const { error } = await supabase.from('wallets').insert([
+        {
+            username,
+            balance: balance || 0,
+            address: address || generateWalletAddress(username),
+            transactions: transactions || [],
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+        },
+    ]);
+
+    if (error) {
+        console.error('Supabase error creating wallet:', error);
+        return res.status(500).json({ error: 'Could not create wallet' });
     }
 
-    wallets[username] = {
-        balance: balance || 0,
-        address: address || generateWalletAddress(username),
-        transactions: transactions || [],
-        createdAt: new Date().toISOString(),
-    };
-
-    saveWallets(wallets);
-
-    res.json({ 
-        success: true, 
-        message: 'Wallet created successfully',
-        wallet: wallets[username]
-    });
+    const { data: wallet } = await getWalletByUsername(username);
+    res.json({ success: true, message: 'Wallet created successfully', wallet });
 });
 
 /**
  * Update wallet data
  */
-app.put('/api/wallet/:username', (req, res) => {
+app.put('/api/wallet/:username', async (req, res) => {
     const { username } = req.params;
     const { balance, address, transactions } = req.body;
 
-    const wallets = loadWallets();
-    const wallet = wallets[username];
+    const { data: wallet, error: fetchError } = await getWalletByUsername(username);
+    if (fetchError) {
+        console.error('Supabase error fetching wallet:', fetchError);
+        return res.status(500).json({ error: 'Internal error' });
+    }
+    if (!wallet) return res.status(404).json({ error: 'Wallet not found' });
 
-    if (!wallet) {
-        return res.status(404).json({ error: 'Wallet not found' });
+    const updates = {};
+    if (balance !== undefined) updates.balance = balance;
+    if (address) updates.address = address;
+    if (transactions) updates.transactions = transactions;
+    updates.updatedAt = new Date().toISOString();
+
+    const { error: updateError } = await supabase
+        .from('wallets')
+        .update(updates)
+        .eq('username', username);
+
+    if (updateError) {
+        console.error('Supabase error updating wallet:', updateError);
+        return res.status(500).json({ error: 'Could not update wallet' });
     }
 
-    // Update wallet data
-    if (balance !== undefined) wallet.balance = balance;
-    if (address) wallet.address = address;
-    if (transactions) wallet.transactions = transactions;
-    wallet.updatedAt = new Date().toISOString();
+    const { data: updatedWallet } = await getWalletByUsername(username);
+    res.json({ success: true, message: 'Wallet updated successfully', wallet: updatedWallet });
+});
 
-    saveWallets(wallets);
+/**
+ * Send money endpoint
+ * Body: { sender, receiver, amount }
+ */
+app.post('/api/wallet/send', async (req, res) => {
+    const { sender, receiver, amount } = req.body;
+    if (!sender || !receiver || !amount) return res.status(400).json({ error: 'sender, receiver and amount are required' });
 
-    res.json({ 
-        success: true, 
-        message: 'Wallet updated successfully',
-        wallet 
-    });
+    // Fetch sender balance
+    const { data: senderWallet, error: senderError } = await supabase
+        .from('wallets')
+        .select('balance')
+        .eq('username', sender)
+        .single();
+    if (senderError) {
+        console.error('Error fetching sender wallet:', senderError);
+        return res.status(500).json({ error: 'Internal error' });
+    }
+
+    if (!senderWallet || senderWallet.balance < amount) {
+        return res.status(400).json({ error: 'Insufficient balance' });
+    }
+
+    // Deduct from sender
+    const { error: deductError } = await supabase
+        .from('wallets')
+        .update({ balance: senderWallet.balance - amount })
+        .eq('username', sender);
+    if (deductError) {
+        console.error('Error deducting sender balance:', deductError);
+        return res.status(500).json({ error: 'Could not update sender balance' });
+    }
+
+    // Add to receiver (get current balance first)
+    const { data: receiverWallet, error: receiverError } = await supabase
+        .from('wallets')
+        .select('balance')
+        .eq('username', receiver)
+        .single();
+    if (receiverError) {
+        console.error('Error fetching receiver wallet:', receiverError);
+        return res.status(500).json({ error: 'Internal error' });
+    }
+
+    const newReceiverBalance = (receiverWallet?.balance || 0) + amount;
+    const { error: addError } = await supabase
+        .from('wallets')
+        .update({ balance: newReceiverBalance })
+        .eq('username', receiver);
+    if (addError) {
+        console.error('Error adding to receiver balance:', addError);
+        return res.status(500).json({ error: 'Could not update receiver balance' });
+    }
+
+    // Record transaction
+    const { error: txError } = await supabase.from('transactions').insert([
+        { sender, receiver, amount, createdAt: new Date().toISOString() },
+    ]);
+    if (txError) {
+        console.error('Error inserting transaction:', txError);
+    }
+
+    res.json({ success: true, message: 'Transfer completed' });
 });
 
 /**
@@ -426,19 +548,59 @@ app.get('/', (req, res) => {
         endpoints: {
             register: '/api/register/start',
             login: '/api/login/start',
-            wallet: '/api/wallet/:username'
+            wallet: '/api/wallet/:username',
+            debug: '/api/debug'
+        }
+    });
+});
+
+// Debug endpoint - shows how the browser is connecting
+app.get('/api/debug', (req, res) => {
+    const host = req.get('host') || '?';
+    const origin = req.get('origin') || 'not sent';
+    const protocol = req.protocol;
+    const hostname = req.hostname;
+    
+    res.json({
+        debug: {
+            requestProtocol: protocol,
+            requestHost: host,
+            requestHostname: hostname,
+            originHeader: origin,
+            serverPort: PORT,
+            detectedRPID: getEffectiveDomain(req)
+        },
+        instructions: {
+            issue: "If you're seeing WebAuthn 'relying party ID' errors:",
+            solution: "Make sure you're accessing via HTTP (not HTTPS) for localhost",
+            correctURL: `http://localhost:${PORT}`,
+            wrongURL: `https://localhost:${PORT}`,
+            tips: [
+                "If browser auto-redirects to HTTPS, clear browser history",
+                "Try accessing in incognito/private mode",
+                "Check that origin header matches the URL you're typing"
+            ]
         }
     });
 });
 
 // Start server
 app.listen(PORT, () => {
+    console.log(`\n`);
     console.log(`🚀 WebAuthn Fingerprint Authentication Server running on http://localhost:${PORT}`);
     console.log(`📱 Frontend available at http://localhost:${PORT}`);
     console.log(`🔐 Using platform authenticator (fingerprint scanner)`);
-    console.log(`\n✅ Server is ready! You can now register and login.`);
-    console.log(`\n⚠️  If you see "failed to fetch" errors:`);
-    console.log(`   1. Make sure this server is running`);
-    console.log(`   2. Check that port ${PORT} is not in use`);
-    console.log(`   3. Verify you're accessing http://localhost:${PORT}\n`);
+    console.log(`\n`);
+    console.log(`✅ Server is ready! You can now register and login.`);
+    console.log(`\n`);
+    console.log(`⚠️  IMPORTANT - WebAuthn RP ID Issue:`);
+    console.log(`   1. Access via HTTP (not HTTPS): http://localhost:${PORT}`);
+    console.log(`   2. Don't use: https://localhost:${PORT} (will cause RP ID error)`);
+    console.log(`   3. If browser redirects to HTTPS, bypass it by typing http:// explicitly`);
+    console.log(`\n`);
+    console.log(`❌ If you see "relying party ID" error:`);
+    console.log(`   - You're accessing via HTTPS when you should use HTTP`);
+    console.log(`   - Browser's address bar might auto-upgrade to HTTPS`);
+    console.log(`   - Solution: Clear browser history, type http://localhost:${PORT} directly`);
+    console.log(`\n`);
 });

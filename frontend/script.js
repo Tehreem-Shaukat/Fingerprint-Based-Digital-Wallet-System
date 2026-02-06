@@ -12,8 +12,18 @@
  * NO fingerprint data is accessed or stored - only cryptographic credentials
  */
 
-// Dynamic API_BASE - works on both localhost and Railway.app
-const API_BASE = `${window.location.origin}/api`;
+// Force HTTP for localhost (WebAuthn requires protocol consistency)
+// For production, this will automatically use HTTPS
+let API_BASE;
+if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    // For localhost, explicitly use HTTP
+    const port = window.location.port || '3000';
+    API_BASE = `http://localhost:${port}/api`;
+    console.log('ℹ️  Using HTTP API endpoint for localhost:', API_BASE);
+} else {
+    // For production domains, use current origin
+    API_BASE = `${window.location.origin}/api`;
+}
 
 // Application State
 let currentUser = null;
