@@ -82,25 +82,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (headerLogoutBtn) headerLogoutBtn.addEventListener('click', handleLogout);
     
     // Hamburger menu toggle
-    const hamburgerBtn = document.getElementById('hamburgerBtn');
-    const navMobile = document.getElementById('navMobile');
-    if (hamburgerBtn) {
-        hamburgerBtn.addEventListener('click', () => {
-            hamburgerBtn.classList.toggle('active');
-            navMobile.classList.toggle('active');
+    const hamburgerMenu = document.getElementById('hamburgerMenu');
+    const walletNav = document.getElementById('walletNav');
+    if (hamburgerMenu && walletNav) {
+        hamburgerMenu.addEventListener('click', () => {
+            hamburgerMenu.classList.toggle('active');
+            walletNav.classList.toggle('active');
         });
     }
 
     // Navigation link handlers for desktop and mobile
-    document.querySelectorAll('.nav-link, .nav-link-mobile').forEach(link => {
+    document.querySelectorAll('.nav-link').forEach(link => {
         link.addEventListener('click', (e) => {
             e.preventDefault();
             const page = link.getAttribute('data-page');
             if (page) {
                 // Close mobile menu if open
-                if (hamburgerBtn && hamburgerBtn.classList.contains('active')) {
-                    hamburgerBtn.classList.remove('active');
-                    navMobile.classList.remove('active');
+                if (hamburgerMenu && walletNav) {
+                    hamburgerMenu.classList.remove('active');
+                    walletNav.classList.remove('active');
                 }
                 // Navigate to the page
                 navigateToPage(page);
