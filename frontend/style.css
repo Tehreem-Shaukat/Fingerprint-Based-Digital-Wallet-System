@@ -37,23 +37,16 @@ body {
 .container {
     max-width: 1200px;
     margin: 0 auto;
-    padding: 20px;
+    padding: 0;
     width: 100%;
     flex: 1;
     display: flex;
     flex-direction: column;
 }
 
-/* Header */
+/* Header - HIDE */
 .header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 20px 0;
-    border-bottom: 1px solid var(--border-color);
-    margin-bottom: 40px;
-    position: relative;
-    flex-wrap: wrap;
+    display: none !important;
 }
 
 .logo {
@@ -215,7 +208,8 @@ body {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    min-height: 60vh;
+    min-height: 100vh;
+    padding: 40px 20px;
 }
 
 /* Welcome Section */
@@ -539,14 +533,9 @@ body {
     color: var(--text-primary);
 }
 
-/* Footer */
+/* Footer - HIDE */
 .footer {
-    margin-top: 40px;
-    padding: 20px 0;
-    text-align: center;
-    border-top: 1px solid var(--border-color);
-    color: var(--text-secondary);
-    font-size: 14px;
+    display: none !important;
 }
 
 /* Responsive */
@@ -1249,9 +1238,11 @@ body {
 /* Wallet App Container */
 .wallet-app {
     display: flex;
+    flex-direction: column;
     gap: 24px;
     flex: 1;
-    margin-top: 20px;
+    width: 100%;
+    padding: 40px 20px;
 }
 
 /* Sidebar removed - header navigation handles top-level navigation */
@@ -1260,6 +1251,7 @@ body {
 .wallet-content {
     flex: 1;
     min-width: 0;
+    width: 100%;
 }
 
 .page {
