@@ -16,7 +16,18 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const cors = require('cors');
-require('dotenv').config();
+
+// Load .env file only if it exists (for local development)
+// Railway and other platforms will provide environment variables directly
+try {
+    const envPath = path.resolve(__dirname, '../.env');
+    if (fs.existsSync(envPath)) {
+        require('dotenv').config({ path: envPath });
+    }
+} catch (err) {
+    // Silent fail - environment variables may be set by platform
+}
+
 const { supabase } = require('./supabase');
 
 const app = express();
