@@ -38,6 +38,14 @@ app.use(cors()); // Allow frontend to access backend
 app.use(express.json()); // Parse JSON requests
 app.use(express.static(path.join(__dirname, '../frontend'))); // Serve frontend files
 
+// Mount transfer routes (payments, wallets, transactions)
+try {
+    const transferRoutes = require('./routes/transfer');
+    app.use('/api', transferRoutes);
+} catch (err) {
+    console.warn('Transfer routes not available:', err.message);
+}
+
 // Helper: get user from Supabase
 async function getUserByUsername(username) {
     try {
