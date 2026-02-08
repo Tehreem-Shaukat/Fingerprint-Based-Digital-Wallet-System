@@ -219,22 +219,45 @@ app.post('/api/register/complete', async (req, res) => {
     // In production, you'd verify the attestation and signature properly
     try {
         // Insert user into Supabase users table
-        const { error: insertUserError } = await supabase.from('users').insert([
+        const { data: userData, error: insertUserError } = await supabase.from('users').insert([
             {
                 username,
                 credentialId: credential.id,
                 publicKey: credential.response?.publicKey || 'stored',
                 registeredAt: new Date().toISOString(),
             },
-        ]);
+        ]).select();
 
         if (insertUserError) {
-            console.error('Error inserting user:', insertUserError);
-            return res.status(500).json({ error: 'Registration failed' });
+            console.error('❌ Error inserting user:', {
+                message: insertUserError.message,
+                code: insertUserError.code,
+                details: insertUserError.details,
+                hint: insertUserError.hint,
+            });
+            
+            // Check for common errors
+            if (insertUserError.message.includes('relation') && insertUserError.message.includes('does not exist')) {
+                return res.status(500).json({ 
+                    error: 'Database tables not initialized',
+                    details: 'The "users" table does not exist in Supabase. Please create it using the SQL in SUPABASE_INTEGRATION.md'
+                });
+            }
+            if (insertUserError.message.includes('permission denied')) {
+                return res.status(500).json({ 
+                    error: 'Permission denied - RLS policy issue',
+                    details: 'Check Row Level Security (RLS) policies in Supabase. Tables should allow anonymous inserts.'
+                });
+            }
+            
+            return res.status(500).json({ 
+                error: 'Registration failed - user insert',
+                details: insertUserError.message
+            });
         }
 
         // Create a default wallet for the user
-        const { error: insertWalletError } = await supabase.from('wallets').insert([
+        const { data: walletData, error: insertWalletError } = await supabase.from('wallets').insert([
             {
                 username,
                 balance: 10000,
@@ -243,16 +266,39 @@ app.post('/api/register/complete', async (req, res) => {
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
             },
-        ]);
+        ]).select();
 
         if (insertWalletError) {
-            console.error('Error creating wallet:', insertWalletError);
-            return res.status(500).json({ error: 'Registration failed (wallet)'});
+            console.error('❌ Error creating wallet:', {
+                message: insertWalletError.message,
+                code: insertWalletError.code,
+                details: insertWalletError.details,
+                hint: insertWalletError.hint,
+            });
+            
+            if (insertWalletError.message.includes('relation') && insertWalletError.message.includes('does not exist')) {
+                return res.status(500).json({ 
+                    error: 'Database tables not initialized',
+                    details: 'The "wallets" table does not exist in Supabase. Please create it using the SQL in SUPABASE_INTEGRATION.md'
+                });
+            }
+            if (insertWalletError.message.includes('permission denied')) {
+                return res.status(500).json({ 
+                    error: 'Permission denied - RLS policy issue',
+                    details: 'Check Row Level Security (RLS) policies in Supabase. Tables should allow anonymous inserts.'
+                });
+            }
+            
+            return res.status(500).json({ 
+                error: 'Registration failed - wallet creation',
+                details: insertWalletError.message
+            });
         }
 
         // Clean up challenge
         delete global.challenges[username];
 
+        console.log('✅ User registered successfully:', username);
         res.json({
             success: true,
             message: 'Fingerprint registered successfully!',
@@ -260,7 +306,10 @@ app.post('/api/register/complete', async (req, res) => {
         });
     } catch (error) {
         console.error('Registration error:', error);
-        res.status(500).json({ error: 'Registration failed' });
+        res.status(500).json({ 
+            error: 'Registration failed',
+            details: error.message 
+        });
     }
 });
 
@@ -551,20 +600,6 @@ function generateWalletAddress(username) {
     return `0x${hash.substring(0, 40).toUpperCase()}`;
 }
 
-// Health check endpoint
-app.get('/', (req, res) => {
-    res.json({ 
-        status: 'ok', 
-        message: 'Fingerprint Wallet API is running',
-        endpoints: {
-            register: '/api/register/start',
-            login: '/api/login/start',
-            wallet: '/api/wallet/:username',
-            debug: '/api/debug'
-        }
-    });
-});
-
 // Debug endpoint - shows how the browser is connecting
 app.get('/api/debug', (req, res) => {
     const host = req.get('host') || '?';
@@ -591,6 +626,63 @@ app.get('/api/debug', (req, res) => {
                 "Try accessing in incognito/private mode",
                 "Check that origin header matches the URL you're typing"
             ]
+        }
+    });
+});
+
+// Database diagnostic endpoint
+app.get('/api/health/database', async (req, res) => {
+    console.log('Checking database health...');
+    
+    const checkTable = async (tableName) => {
+        try {
+            const { data, error } = await supabase
+                .from(tableName)
+                .select('count', { count: 'exact', head: true });
+            
+            if (error) {
+                if (error.message.includes('does not exist') || error.message.includes('relation')) {
+                    return { status: '❌ MISSING', message: `Table "${tableName}" does not exist` };
+                }
+                if (error.message.includes('permission denied')) {
+                    return { status: '⚠️  EXISTS BUT NO ACCESS', message: `Cannot read from "${tableName}". Check RLS policies.` };
+                }
+                return { status: '❌ ERROR', message: error.message };
+            }
+            return { status: '✅ OK', count: data?.length || 0 };
+        } catch (err) {
+            return { status: '❌ ERROR', message: err.message };
+        }
+    };
+    
+    const results = {
+        supabaseConnection: supabaseUrl ? '✅ Connected' : '❌ No URL',
+        tables: {
+            users: await checkTable('users'),
+            wallets: await checkTable('wallets'),
+            transactions: await checkTable('transactions'),
+        },
+        setup: {
+            dbURL: supabaseUrl ? 'Set' : 'Missing',
+            dbKey: supabaseKey ? 'Set (hidden)' : 'Missing',
+            envFile: '.env file loaded',
+        }
+    };
+    
+    res.json(results);
+});
+
+// Health check endpoint
+app.get('/', (req, res) => {
+    res.json({ 
+        status: 'ok', 
+        message: 'Fingerprint Wallet API is running',
+        endpoints: {
+            register: '/api/register/start',
+            login: '/api/login/start',
+            wallet: '/api/wallet/:username',
+            debug: '/api/debug',
+            health: '/api/health/database'
         }
     });
 });
