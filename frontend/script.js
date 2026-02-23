@@ -18,11 +18,11 @@ let API_BASE;
 if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
     // For localhost, explicitly use HTTP
     const port = window.location.port || '3000';
-    API_BASE = `http://localhost:${port}/api`;
+    API_BASE = `http://localhost:${port}`;
     console.log('ℹ️  Using HTTP API endpoint for localhost:', API_BASE);
 } else {
     // For production domains, use current origin
-    API_BASE = `${window.location.origin}/api`;
+    API_BASE = `${window.location.origin}`;
 }
 
 // Safe fetch wrapper that performs content-type checks and converts
@@ -224,7 +224,7 @@ function checkWebAuthnDomain() {
  */
 async function checkServerConnection() {
     try {
-        const response = await fetch(`${API_BASE.replace('/api', '')}/`, {
+        const response = await fetch(`${API_BASE}/`, {
             method: 'GET',
             signal: AbortSignal.timeout(3000) // 3 second timeout
         });
@@ -290,17 +290,16 @@ async function showWalletApp(username, loginTime) {
 async function initializeWallet(username) {
     try {
         // Load wallet data from backend
-        const data = await safeFetch(`${API_BASE}/wallet/${username}`);
-        walletData = {
-            balance: data.balance || 0,
-            address: data.address || generateWalletAddress(username),
-            transactions: data.transactions || []
-        };
-        updateWalletUI();
-    } catch (error) {
-        console.error('Error initializing wallet:', error);
-        // If the wallet simply didn't exist, create a fresh one
-        if (error.status === 404) {
+        const response = await fetch(`${API_BASE}/wallet/${username}`);
+        if (response.ok) {
+            const data = await response.json();
+            walletData = {
+                balance: data.balance || 0,
+                address: data.address || generateWalletAddress(username),
+                transactions: data.transactions || []
+            };
+        } else {
+            // Create new wallet if doesn't exist
             walletData = {
                 balance: 1000.00, // Demo starting balance
                 address: generateWalletAddress(username),
@@ -333,7 +332,7 @@ function generateWalletAddress(username) {
  */
 async function createWallet(username, walletData) {
     try {
-        await safeFetch(`${API_BASE}/wallet/create`, {
+        await fetch(`${API_BASE}/wallet/create`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, ...walletData })
@@ -410,7 +409,7 @@ function updateTransactionsList() {
                         ${tx.type === 'send' ? '📤' : '📥'}
                     </div>
                     <div class="transaction-details">
-                        <div class="transaction-type">${tx.type === 'send' ? 'Sent' : 'Received'}</div>
+                        <div class="transaction-type">${tx.type === 'send' ? `Sent to ${tx.recipient}` : `Received from ${tx.sender}`}</div>
                         <div class="transaction-date">${new Date(tx.timestamp).toLocaleString()}</div>
                     </div>
                 </div>
@@ -486,11 +485,30 @@ async function handleRegister(e) {
         registerBtn.classList.add('loading');
 
         // Step 1: Get registration options from backend
-        const data = await safeFetch(`${API_BASE}/register/start`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username }),
-        });
+        let response;
+        try {
+            response = await fetch(`${API_BASE}/register/start`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ username }),
+            });
+        } catch (fetchError) {
+            console.error('Network error:', fetchError);
+            throw new Error('❌ Cannot connect to server. Please make sure the backend server is running and accessible.');
+        }
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ error: 'Server error' }));
+            throw new Error(errorData.error || `Server error: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Registration failed');
+        }
 
         // Step 2: Convert challenge and user.id from base64url to ArrayBuffer
         // WebAuthn requires ArrayBuffer format
@@ -539,11 +557,33 @@ async function handleRegister(e) {
         };
 
         // Step 5: Send credential to backend for storage
-        const completeData = await safeFetch(`${API_BASE}/register/complete`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, credential: credentialForBackend }),
-        });
+        let completeResponse;
+        try {
+            completeResponse = await fetch(`${API_BASE}/register/complete`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    username,
+                    credential: credentialForBackend,
+                }),
+            });
+        } catch (fetchError) {
+            console.error('Network error:', fetchError);
+            throw new Error('❌ Cannot connect to server. Please make sure the backend server is running and accessible.');
+        }
+
+        if (!completeResponse.ok) {
+            const errorData = await completeResponse.json().catch(() => ({ error: 'Server error' }));
+            throw new Error(errorData.error || `Server error: ${completeResponse.status}`);
+        }
+
+        const completeData = await completeResponse.json();
+
+        if (!completeResponse.ok) {
+            throw new Error(completeData.error || 'Registration completion failed');
+        }
 
         showMessage('Fingerprint registered successfully! You can now login.', 'success');
         
@@ -590,11 +630,30 @@ async function handleLogin(e) {
         loginBtn.classList.add('loading');
 
         // Step 1: Get authentication options from backend
-        const data = await safeFetch(`${API_BASE}/login/start`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username }),
-        });
+        let response;
+        try {
+            response = await fetch(`${API_BASE}/login/start`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ username }),
+            });
+        } catch (fetchError) {
+            console.error('Network error:', fetchError);
+            throw new Error('❌ Cannot connect to server. Please make sure the backend server is running and accessible.');
+        }
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ error: 'Server error' }));
+            throw new Error(errorData.error || `Server error: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Login failed');
+        }
 
         // Step 2: Convert challenge and credential ID from base64url to ArrayBuffer
         function base64urlToArrayBuffer(base64url) {
@@ -642,11 +701,33 @@ async function handleLogin(e) {
         };
 
         // Step 5: Send assertion to backend for verification
-        const completeData = await safeFetch(`${API_BASE}/login/complete`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, credential: assertionForBackend }),
-        });
+        let completeResponse;
+        try {
+            completeResponse = await fetch(`${API_BASE}/login/complete`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    username,
+                    credential: assertionForBackend,
+                }),
+            });
+        } catch (fetchError) {
+            console.error('Network error:', fetchError);
+            throw new Error('❌ Cannot connect to server. Please make sure the backend server is running and accessible.');
+        }
+
+        if (!completeResponse.ok) {
+            const errorData = await completeResponse.json().catch(() => ({ error: 'Server error' }));
+            throw new Error(errorData.error || `Server error: ${completeResponse.status}`);
+        }
+
+        const completeData = await completeResponse.json();
+
+        if (!completeResponse.ok) {
+            throw new Error(completeData.error || 'Authentication failed');
+        }
 
         showMessage('Login successful! Welcome back.', 'success');
         
@@ -731,25 +812,25 @@ async function handleSend(e) {
         sendBtn.disabled = true;
         sendBtn.classList.add('loading');
         
-        // Create transaction
-        const transaction = {
-            type: 'send',
-            recipient: recipientAddress,
-            amount: amount,
-            note: note,
-            timestamp: new Date().toISOString(),
-            status: 'Completed'
-        };
+        // Call backend transfer endpoint
+        const response = await fetch(`${API_BASE}/api/transfer`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                sender: currentUser,
+                receiver: recipientAddress,
+                amount: amount
+            })
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.error || 'Transfer failed');
+        }
         
-        // Update wallet
-        walletData.balance -= amount;
-        walletData.transactions.push(transaction);
-        
-        // Save to backend
-        await saveWalletData();
-        
-        // Update UI
-        updateWalletUI();
+        // Refresh wallet data from server to get updated balance and transactions
+        await initializeWallet(currentUser);
         
         // Reset form
         e.target.reset();
@@ -762,7 +843,7 @@ async function handleSend(e) {
         
     } catch (error) {
         console.error('Send error:', error);
-        showMessage('Transaction failed. Please try again.', 'error');
+        showMessage(error.message || 'Transaction failed. Please try again.', 'error');
     } finally {
         sendBtn.disabled = false;
         sendBtn.classList.remove('loading');
@@ -774,7 +855,7 @@ async function handleSend(e) {
  */
 async function saveWalletData() {
     try {
-        await safeFetch(`${API_BASE}/wallet/${currentUser}`, {
+        await fetch(`${API_BASE}/wallet/${currentUser}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(walletData)
