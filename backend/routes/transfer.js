@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const supabase = require('../config/supabase');
+const { supabase } = require('../supabase');
 
 // Transfer funds endpoint
 router.post('/transfer', async (req, res) => {
@@ -45,7 +45,7 @@ router.post('/transfer', async (req, res) => {
     return res.json({
       success: true,
       message: result.message,
-      transactionId: result.transaction_id || result.transaction_id
+      transactionId: result.transaction_id
     });
 
   } catch (error) {
