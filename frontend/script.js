@@ -169,6 +169,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
     
+    // Refresh button (dashboard)
+    const refreshBtn = document.getElementById('refreshBtn');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', () => {
+            if (currentUser) {
+                showMessage('Refreshing wallet...', 'success');
+                initializeWallet(currentUser);
+            }
+        });
+    }
+    
     // Copy address buttons
     const copyAddressBtn = document.getElementById('copyAddressBtn');
     if (copyAddressBtn) {
@@ -304,7 +315,7 @@ async function initializeWallet(username) {
             walletData = {
                 balance: data.balance || 0,
                 address: data.address || generateWalletAddress(username),
-                transactions: data.transactions || []
+                transactions: [] // we'll fill from history
             };
         } else if (response.status === 404) {
             // Wallet doesn't exist yet – give demo balance and create one
@@ -324,6 +335,28 @@ async function initializeWallet(username) {
                 transactions: []
             };
         }
+
+        // fetch transaction history separately
+        try {
+            const txRes = await fetch(`${API_BASE}/api/transactions/${username}`);
+            if (txRes.ok) {
+                const txData = await txRes.json();
+                console.log('transaction history response', txData);
+                walletData.transactions = (txData.transactions || []).map(tx => ({
+                    type: tx.sender === username ? 'send' : 'receive',
+                    sender: tx.sender,
+                    recipient: tx.receiver,
+                    amount: tx.amount,
+                    timestamp: tx.createdAt || tx.created_at || new Date().toISOString(),
+                    status: tx.status || 'Completed'
+                }));
+            } else {
+                console.warn('Failed to fetch transaction history, status=', txRes.status);
+            }
+        } catch (txErr) {
+            console.error('Error loading transactions:', txErr);
+        }
+
         updateWalletUI();
     } catch (err) {
         console.error('Error initializing wallet:', err);
@@ -482,6 +515,12 @@ function navigateToPage(pageName) {
     // Update send form total
     if (pageName === 'send') {
         updateSendTotal();
+    }
+
+    // When visiting dashboard or transactions, refresh wallet data
+    if ((pageName === 'dashboard' || pageName === 'transactions') && currentUser) {
+        console.log('navigated to', pageName, 'refreshing wallet');
+        initializeWallet(currentUser);
     }
 }
 
@@ -851,6 +890,8 @@ async function handleSend(e) {
         
         // Refresh wallet data from server to get updated balance and transactions
         await initializeWallet(currentUser);
+        // if we happened to send to ourselves, the refreshInfo call above covers it
+        // for receivers on a different session, they must reload or use refresh button
         
         // Reset form
         e.target.reset();
