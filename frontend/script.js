@@ -288,11 +288,14 @@ async function showWalletApp(username, loginTime) {
  * Initialize wallet data
  */
 async function initializeWallet(username) {
+    console.log('initializeWallet() called for', username, 'API_BASE=', API_BASE);
     try {
         // Load wallet data from backend (use "/api" prefix)
         const response = await fetch(`${API_BASE}/api/wallet/${username}`);
+        console.log('wallet fetch status=', response.status);
         if (response.ok) {
             const data = await response.json();
+            console.log('wallet data received', data);
             walletData = {
                 balance: data.balance || 0,
                 address: data.address || generateWalletAddress(username),
@@ -300,6 +303,7 @@ async function initializeWallet(username) {
             };
         } else if (response.status === 404) {
             // Wallet doesn't exist yet – give demo balance and create one
+            console.log('wallet not found, creating a new one');
             walletData = {
                 balance: 1000.00, // Demo starting balance
                 address: generateWalletAddress(username),
@@ -356,6 +360,7 @@ async function createWallet(username, walletData) {
  * Update wallet UI with current data
  */
 function updateWalletUI() {
+    console.log('updateWalletUI; walletData=', walletData);
     // Update balance
     document.getElementById('totalBalance').textContent = formatCurrency(walletData.balance);
     document.getElementById('usdBalance').textContent = formatCurrency(walletData.balance);
