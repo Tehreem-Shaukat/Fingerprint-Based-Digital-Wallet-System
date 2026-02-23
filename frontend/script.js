@@ -252,10 +252,26 @@ async function initializeWallet(username) {
         const response = await fetch(`${API_BASE}/wallet/${username}`);
         if (response.ok) {
             const data = await response.json();
+            
+            // Also fetch transactions for this user
+            const txResponse = await fetch(`${API_BASE}/transactions/${username}`);
+            let transactions = [];
+            if (txResponse.ok) {
+                const txData = await txResponse.json();
+                transactions = txData.transactions.map(tx => ({
+                    type: tx.sender === username ? 'send' : 'receive',
+                    recipient: tx.receiver,
+                    sender: tx.sender,
+                    amount: tx.amount,
+                    timestamp: tx.createdAt,
+                    status: 'Completed'
+                }));
+            }
+
             walletData = {
-                balance: data.balance || 0,
-                address: data.address || generateWalletAddress(username),
-                transactions: data.transactions || []
+                balance: data.wallet ? data.wallet.balance : (data.balance || 0),
+                address: data.wallet ? data.wallet.address : (data.address || generateWalletAddress(username)),
+                transactions: transactions
             };
         } else {
             // Create new wallet if doesn't exist
@@ -371,7 +387,7 @@ function updateTransactionsList() {
                         ${tx.type === 'send' ? '📤' : '📥'}
                     </div>
                     <div class="transaction-details">
-                        <div class="transaction-type">${tx.type === 'send' ? 'Sent' : 'Received'}</div>
+                        <div class="transaction-type">${tx.type === 'send' ? `Sent to ${tx.recipient}` : `Received from ${tx.sender}`}</div>
                         <div class="transaction-date">${new Date(tx.timestamp).toLocaleString()}</div>
                     </div>
                 </div>
@@ -774,25 +790,25 @@ async function handleSend(e) {
         sendBtn.disabled = true;
         sendBtn.classList.add('loading');
         
-        // Create transaction
-        const transaction = {
-            type: 'send',
-            recipient: recipientAddress,
-            amount: amount,
-            note: note,
-            timestamp: new Date().toISOString(),
-            status: 'Completed'
-        };
+        // Call backend transfer endpoint
+        const response = await fetch(`${API_BASE}/transfer`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                sender: currentUser,
+                receiver: recipientAddress,
+                amount: amount
+            })
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.error || 'Transfer failed');
+        }
         
-        // Update wallet
-        walletData.balance -= amount;
-        walletData.transactions.push(transaction);
-        
-        // Save to backend
-        await saveWalletData();
-        
-        // Update UI
-        updateWalletUI();
+        // Refresh wallet data from server to get updated balance and transactions
+        await initializeWallet(currentUser);
         
         // Reset form
         e.target.reset();
@@ -805,7 +821,7 @@ async function handleSend(e) {
         
     } catch (error) {
         console.error('Send error:', error);
-        showMessage('Transaction failed. Please try again.', 'error');
+        showMessage(error.message || 'Transaction failed. Please try again.', 'error');
     } finally {
         sendBtn.disabled = false;
         sendBtn.classList.remove('loading');
