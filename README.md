@@ -133,7 +133,34 @@ This project uses **platform authenticators** to leverage your device's built-in
 - **User control**: User can revoke credentials anytime
 - **No third-party services**: Everything runs on your server
 
-## 📁 Project Structure
+## � Deployment and Production Notes
+
+When you push this project to a hosting service such as Railway, Vercel, or Heroku, a few important details need attention:
+
+1. **Dynamic API Base URL** – the frontend computes its API endpoint at runtime using the current origin:
+   ```js
+   const API_BASE =
+     window.location.hostname === 'localhost' ?
+       `http://localhost:${window.location.port || 3000}/api` :
+       `${window.location.origin}/api`;
+   ```
+   This ensures that in development the app talks to `localhost`, while in production it automatically targets the deployed domain.  Avoid hard‑coding `http://localhost:8080` or similar values.
+
+2. **WebAuthn RP ID** – the backend derives the relying party ID from the request origin, falling back to `process.env.WEBAUTHN_RP_ID` when provided.  Make sure your deployment exposes the frontend domain (e.g. `fingerprint-based-digital-wallet-system-production.up.railway.app`) and, if necessary, set `WEBAUTHN_RP_ID` to that hostname.
+
+3. **Environment Variables** – Railway and other platforms supply a `$PORT` value; the server already uses `process.env.PORT || 3000`.  In addition you must set:
+   - `SUPABASE_URL` and `SUPABASE_KEY` for database access
+   - Any other secret keys required by your app
+
+4. **CORS** – the server currently uses `app.use(cors())` which allows all origins.  For tighter security you can restrict this to your frontend’s domain using an environment variable.
+
+5. **Health & Debug Endpoints** – there are helper routes under `/api/debug` and `/api/health/database` that can be used to verify the RP ID, host/origin headers, and Supabase connectivity once deployed.
+
+If the frontend ever logs an HTML response (e.g. `Unexpected token '<'`), it almost always means the wrong base URL is being used.  Check the browser console for the `safeFetch` diagnostics added in version 2.0.
+
+---
+
+## �📁 Project Structure
 
 ```
 webauthn-fingerprint-login/
