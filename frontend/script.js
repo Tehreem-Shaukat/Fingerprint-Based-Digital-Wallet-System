@@ -18,11 +18,11 @@ let API_BASE;
 if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
     // For localhost, explicitly use HTTP
     const port = window.location.port || '3000';
-    API_BASE = `http://localhost:${port}/api`;
+    API_BASE = `http://localhost:${port}`;
     console.log('ℹ️  Using HTTP API endpoint for localhost:', API_BASE);
 } else {
     // For production domains, use current origin
-    API_BASE = `${window.location.origin}/api`;
+    API_BASE = `${window.location.origin}`;
 }
 
 // Application State
@@ -183,7 +183,7 @@ function checkWebAuthnDomain() {
  */
 async function checkServerConnection() {
     try {
-        const response = await fetch(`${API_BASE.replace('/api', '')}/`, {
+        const response = await fetch(`${API_BASE}/`, {
             method: 'GET',
             signal: AbortSignal.timeout(3000) // 3 second timeout
         });
@@ -249,12 +249,12 @@ async function showWalletApp(username, loginTime) {
 async function initializeWallet(username) {
     try {
         // Load wallet data from backend
-        const response = await fetch(`${API_BASE}/wallet/${username}`);
+        const response = await fetch(`${API_BASE}/api/wallet/${username}`);
         if (response.ok) {
             const data = await response.json();
             
             // Also fetch transactions for this user
-            const txResponse = await fetch(`${API_BASE}/transactions/${username}`);
+            const txResponse = await fetch(`${API_BASE}/api/transactions/${username}`);
             let transactions = [];
             if (txResponse.ok) {
                 const txData = await txResponse.json();
@@ -310,7 +310,7 @@ function generateWalletAddress(username) {
  */
 async function createWallet(username, walletData) {
     try {
-        await fetch(`${API_BASE}/wallet/create`, {
+        await fetch(`${API_BASE}/api/wallet/create`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, ...walletData })
@@ -465,7 +465,7 @@ async function handleRegister(e) {
         // Step 1: Get registration options from backend
         let response;
         try {
-            response = await fetch(`${API_BASE}/register/start`, {
+            response = await fetch(`${API_BASE}/api/register/start`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -537,7 +537,7 @@ async function handleRegister(e) {
         // Step 5: Send credential to backend for storage
         let completeResponse;
         try {
-            completeResponse = await fetch(`${API_BASE}/register/complete`, {
+            completeResponse = await fetch(`${API_BASE}/api/register/complete`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -610,7 +610,7 @@ async function handleLogin(e) {
         // Step 1: Get authentication options from backend
         let response;
         try {
-            response = await fetch(`${API_BASE}/login/start`, {
+            response = await fetch(`${API_BASE}/api/login/start`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -681,7 +681,7 @@ async function handleLogin(e) {
         // Step 5: Send assertion to backend for verification
         let completeResponse;
         try {
-            completeResponse = await fetch(`${API_BASE}/login/complete`, {
+            completeResponse = await fetch(`${API_BASE}/api/login/complete`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -791,7 +791,7 @@ async function handleSend(e) {
         sendBtn.classList.add('loading');
         
         // Call backend transfer endpoint
-        const response = await fetch(`${API_BASE}/transfer`, {
+        const response = await fetch(`${API_BASE}/api/transfer`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -833,7 +833,7 @@ async function handleSend(e) {
  */
 async function saveWalletData() {
     try {
-        await fetch(`${API_BASE}/wallet/${currentUser}`, {
+        await fetch(`${API_BASE}/api/wallet/${currentUser}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(walletData)
