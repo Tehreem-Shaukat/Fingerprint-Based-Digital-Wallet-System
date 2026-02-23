@@ -169,6 +169,21 @@ app.use(cors()); // Should be present
 
 ---
 
+### "Unexpected token '<'" or HTML response in console
+This error means your frontend tried to parse an HTML page as JSON. It usually occurs when the app is calling the wrong backend URL (e.g. still pointing at `http://localhost:8080`) or the server returned an error page.
+
+**How to fix:**
+1. Confirm the API base URL is dynamic and matches the current origin.
+   - Open browser console and look for a log like `Using HTTP API endpoint for localhost:` or the full `API_BASE` value.
+   - When running in production, `API_BASE` should start with `https://` and your Railway domain.
+2. Ensure you didn’t hard‑code `localhost` anywhere in `frontend/script.js` (the repo now uses `window.location.origin` logic).
+3. The app now uses a `safeFetch()` helper which logs the first 200 characters of non‑JSON responses — check the console for those logs to identify the returned HTML.
+4. Make sure the backend is actually reachable at that URL and not returning a 404/502 page from the hosting provider.
+
+Once the API URL is correct the WebAuthn RP ID mismatch should also disappear.
+
+---
+
 ## 🚀 Quick Test
 
 Run this in your browser console (F12) to test the connection:
