@@ -290,8 +290,7 @@ async function showWalletApp(username, loginTime) {
 async function initializeWallet(username) {
     try {
         // Load wallet data from backend
-        const response = await fetch(`${API_BASE}/api/wallet/${encodeURIComponent(username)}`);
-
+        const response = await fetch(`${API_BASE}/wallet/${username}`);
         if (response.ok) {
             const data = await response.json();
             walletData = {
@@ -299,34 +298,28 @@ async function initializeWallet(username) {
                 address: data.address || generateWalletAddress(username),
                 transactions: data.transactions || []
             };
-            updateWalletUI();
-            return;
-        }
-
-        // Wallet not found → create it
-        if (response.status === 404) {
+        } else {
+            // Create new wallet if doesn't exist
             walletData = {
                 balance: 1000.0, // Demo starting balance
                 address: generateWalletAddress(username),
                 transactions: []
             };
             await createWallet(username, walletData);
-            updateWalletUI();
-            return;
+        } else {
+            // Use default values for other errors
+            walletData = {
+                balance: 1000.00,
+                address: generateWalletAddress(username),
+                transactions: []
+            };
         }
-
-        // Other errors → fall back to local values
-        console.warn('Wallet fetch failed with status', response.status);
-        walletData = {
-            balance: 1000.0,
-            address: generateWalletAddress(username),
-            transactions: []
-        };
         updateWalletUI();
     } catch (err) {
         console.error('Error initializing wallet:', err);
+        // Fallback so UI still renders something
         walletData = {
-            balance: 1000.0,
+            balance: 1000.00,
             address: generateWalletAddress(username),
             transactions: []
         };
@@ -871,7 +864,7 @@ async function handleSend(e) {
  */
 async function saveWalletData() {
     try {
-        await fetch(`${API_BASE}/api/wallet/${encodeURIComponent(currentUser)}`, {
+        await fetch(`${API_BASE}/wallet/${currentUser}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(walletData)
