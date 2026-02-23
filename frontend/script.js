@@ -289,8 +289,8 @@ async function showWalletApp(username, loginTime) {
  */
 async function initializeWallet(username) {
     try {
-        // Load wallet data from backend
-        const response = await fetch(`${API_BASE}/wallet/${username}`);
+        // Load wallet data from backend (use "/api" prefix)
+        const response = await fetch(`${API_BASE}/api/wallet/${username}`);
         if (response.ok) {
             const data = await response.json();
             walletData = {
@@ -298,16 +298,17 @@ async function initializeWallet(username) {
                 address: data.address || generateWalletAddress(username),
                 transactions: data.transactions || []
             };
-        } else {
-            // Create new wallet if doesn't exist
+        } else if (response.status === 404) {
+            // Wallet doesn't exist yet – give demo balance and create one
             walletData = {
-                balance: 1000.0, // Demo starting balance
+                balance: 1000.00, // Demo starting balance
                 address: generateWalletAddress(username),
                 transactions: []
             };
             await createWallet(username, walletData);
         } else {
-            // Use default values for other errors
+            // Unexpected error; fall back to defaults
+            console.warn('Unable to load wallet, falling back to defaults, status=', response.status);
             walletData = {
                 balance: 1000.00,
                 address: generateWalletAddress(username),
@@ -864,7 +865,7 @@ async function handleSend(e) {
  */
 async function saveWalletData() {
     try {
-        await fetch(`${API_BASE}/wallet/${currentUser}`, {
+        await fetch(`${API_BASE}/api/wallet/${currentUser}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(walletData)
