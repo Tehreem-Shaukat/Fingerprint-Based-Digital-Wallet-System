@@ -99,10 +99,8 @@ router.get('/wallet/:username', async (req, res) => {
       throw error;
     }
 
-    res.json({
-      success: true,
-      wallet: data
-    });
+    // return the wallet object directly (no wrapper)
+    res.json(data);
 
   } catch (error) {
     console.error('Error fetching wallet:', error);

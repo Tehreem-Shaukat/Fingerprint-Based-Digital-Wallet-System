@@ -294,8 +294,13 @@ async function initializeWallet(username) {
         const response = await fetch(`${API_BASE}/api/wallet/${username}`);
         console.log('wallet fetch status=', response.status);
         if (response.ok) {
-            const data = await response.json();
-            console.log('wallet data received', data);
+            let data = await response.json();
+            console.log('raw wallet payload received', data);
+            // handle wrapper { success: true, wallet: {...} }
+            if (data && data.wallet) {
+                data = data.wallet;
+                console.log('unzipped wrapped wallet', data);
+            }
             walletData = {
                 balance: data.balance || 0,
                 address: data.address || generateWalletAddress(username),
