@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fingerprint Wallet - WebAuthn Authentication</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Welcome Section -->
+            <div class="welcome-section" id="welcomeSection">
+                <div class="welcome-card">
+                    <!-- <div class="icon-container">
+                        <svg class="fingerprint-icon" viewBox="0 0 100 100">
+                            <circle cx="50" cy="50" r="45" fill="none" stroke="currentColor" stroke-width="2" opacity="0.3"/>
+                            <path d="M30 50 Q50 30 70 50" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round"/>
+                            <path d="M35 50 Q50 35 65 50" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+                            <circle cx="50" cy="50" r="8" fill="currentColor"/>
+                        </svg>
+                    </div> -->
+                    <h1 class="title">Secure Fingerprint Authentication</h1>
+                    <p class="subtitle">Use your device's built-in fingerprint scanner for secure, passwordless login</p>
+                    
+                    <div class="feature-list">
+                        <div class="feature-item">
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                                <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="2"/>
+                                <path d="M6 10 L9 13 L14 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <span>Hardware-level security</span>
+                        </div>
+                        <div class="feature-item">
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                                <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="2"/>
+                                <path d="M6 10 L9 13 L14 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <span>No fingerprint data stored</span>
+                        </div>
+                        <div class="feature-item">
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                                <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="2"/>
+                                <path d="M6 10 L9 13 L14 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <span>FIDO2/WebAuthn standard</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Auth Section -->
+            <div class="auth-section" id="authSection" style="display: none;">
+                <!-- Registration Form -->
+                <div class="auth-card" id="registerCard">
+                    <div class="card-header">
+                        <h2>Register Fingerprint</h2>
+                        <p>Set up fingerprint authentication for your account</p>
+                    </div>
+                    <form id="registerForm" class="auth-form">
+                        <div class="input-group">
+                            <label for="registerUsername">Username</label>
+                            <input 
+                                type="text" 
+                                id="registerUsername" 
+                                placeholder="Enter your username" 
+                                required
+                                autocomplete="username"
+                            />
+                        </div>
+                        <button type="submit" class="btn btn-primary" id="registerBtn">
+                            <span class="btn-content">
+                                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                                    <path d="M10 2L12 8H18L13 12L15 18L10 14L5 18L7 12L2 8H8L10 2Z" fill="currentColor"/>
+                                </svg>
+                                Register Fingerprint
+                            </span>
+                        </button>
+                    </form>
+                    <div class="auth-footer">
+                        <p>Already registered? <a href="#" id="showLoginLink">Login instead</a></p>
+                    </div>
+                </div>
+
+                <!-- Login Form -->
+                <div class="auth-card" id="loginCard" style="display: none;">
+                    <div class="card-header">
+                        <h2>Login with Fingerprint</h2>
+                        <p>Authenticate using your registered fingerprint</p>
+                    </div>
+                    <form id="loginForm" class="auth-form">
+                        <div class="input-group">
+                            <label for="loginUsername">Username</label>
+                            <input 
+                                type="text" 
+                                id="loginUsername" 
+                                placeholder="Enter your username" 
+                                required
+                                autocomplete="username"
+                            />
+                        </div>
+                        <button type="submit" class="btn btn-primary" id="loginBtn">
+                            <span class="btn-content">
+                                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                                    <path d="M10 2C5.58 2 2 5.58 2 10C2 14.42 5.58 18 10 18C14.42 18 18 14.42 18 10C18 5.58 14.42 2 10 2ZM10 16C6.69 16 4 13.31 4 10C4 6.69 6.69 4 10 4C13.31 4 16 6.69 16 10C16 13.31 13.31 16 10 16Z" fill="currentColor"/>
+                                    <path d="M10 6C8.34 6 7 7.34 7 9C7 10.66 8.34 12 10 12C11.66 12 13 10.66 13 9C13 7.34 11.66 6 10 6Z" fill="currentColor"/>
+                                </svg>
+                                Scan Fingerprint
+                            </span>
+                        </button>
+                    </form>
+                    <div class="auth-footer">
+                        <p>Not registered? <a href="#" id="showRegisterLink">Register now</a></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Success/Error Messages -->
+            <div class="message-container" id="messageContainer"></div>
+
+            <!-- Wallet Application (shown after successful login) -->
+            <div class="wallet-app" id="walletApp" style="display: none;">
+                <!-- Wallet Header with Navigation and Logout -->
+                <div class="wallet-header">
+                    <div class="logo">
+                        <svg width="32" height="32" viewBox="0 0 100 100">
+                            <circle cx="50" cy="50" r="45" fill="none" stroke="currentColor" stroke-width="3"/>
+                            <path d="M30 50 Q50 30 70 50" stroke="currentColor" stroke-width="4" fill="none" stroke-linecap="round"/>
+                            <circle cx="50" cy="50" r="8" fill="currentColor"/>
+                        </svg>
+                        <span class="logo-text">Fingerprint Wallet</span>
+                    </div>
+                    
+                    <!-- Hamburger Menu Button (Mobile) -->
+                    <button class="hamburger-menu" id="hamburgerMenu">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </button>
+                    
+                    <nav class="wallet-nav" id="walletNav">
+                        <a href="#" class="nav-link active" data-page="dashboard">Dashboard</a>
+                        <a href="#" class="nav-link" data-page="wallet">Wallet</a>
+                        <a href="#" class="nav-link" data-page="send">Send</a>
+                        <a href="#" class="nav-link" data-page="receive">Receive</a>
+                        <a href="#" class="nav-link" data-page="transactions">Transactions</a>
+                        <a href="#" class="nav-link" data-page="settings">Settings</a>
+                    </nav>
+                    
+                    <div class="user-menu">
+                        <span class="user-name" id="headerUsername"></span>
+                        <button class="btn-logout" id="logoutBtn">Logout</button>
+                    </div>
+                </div>
+
+                <!-- Wallet Content Area -->
+                <div class="wallet-content">
+                    <!-- Dashboard Page -->
+                    <div class="page active" id="page-dashboard">
+                        <div class="page-header">
+                            <h1>Dashboard</h1>
+                            <p>Welcome back, <span id="dashboardUsername"></span></p>
+                        </div>
+                        
+                        <div class="balance-card">
+                            <div class="balance-label">Total Balance</div>
+                            <div class="balance-amount" id="totalBalance">$0.00</div>
+                            <div class="balance-change positive">+0.00% this month</div>
+                        </div>
+                        
+                        <div class="quick-actions">
+                            <button class="action-btn" data-action="send">
+                                <svg width="24" height="24" viewBox="0 0 20 20" fill="none">
+                                    <path d="M18 2L9 11M18 2L12 18L9 11M18 2L2 8L9 11" stroke="currentColor" stroke-width="2"/>
+                                </svg>
+                                <span>Send</span>
+                            </button>
+                            <button class="action-btn" data-action="receive">
+                                <svg width="24" height="24" viewBox="0 0 20 20" fill="none">
+                                    <path d="M2 18L9 9M2 18L8 2L9 9M2 18L18 12L9 9" stroke="currentColor" stroke-width="2"/>
+                                </svg>
+                                <span>Receive</span>
+                            </button>
+                            <button class="action-btn" data-action="transactions">
+                                <svg width="24" height="24" viewBox="0 0 20 20" fill="none">
+                                    <path d="M2 5H18M2 10H18M2 15H18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                </svg>
+                                <span>History</span>
+                            </button>
+                        </div>
+                        
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <div class="stat-label">Wallet Address</div>
+                                <div class="stat-value small" id="walletAddress">Loading...</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-label">Total Transactions</div>
+                                <div class="stat-value" id="totalTransactions">0</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-label">This Month</div>
+                                <div class="stat-value" id="monthTransactions">0</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Wallet Page -->
+                    <div class="page" id="page-wallet">
+                        <div class="page-header">
+                            <h1>My Wallet</h1>
+                            <p>Manage your digital assets</p>
+                        </div>
+                        <div class="wallet-assets">
+                            <div class="asset-item">
+                                <div class="asset-icon">💰</div>
+                                <div class="asset-info">
+                                    <div class="asset-name">USD Balance</div>
+                                    <div class="asset-amount" id="usdBalance">$0.00</div>
+                                </div>
+                                <div class="asset-actions">
+                                    <button class="btn-icon" data-action="send" title="Send">
+                                        <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+                                            <path d="M18 2L9 11M18 2L12 18L9 11M18 2L2 8L9 11" stroke="currentColor" stroke-width="2"/>
+                                        </svg>
+                                    </button>
+                                    <button class="btn-icon" data-action="receive" title="Receive">
+                                        <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+                                            <path d="M2 18L9 9M2 18L8 2L9 9M2 18L18 12L9 9" stroke="currentColor" stroke-width="2"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Send Page -->
+                    <div class="page" id="page-send">
+                        <div class="page-header">
+                            <h1>Send Money</h1>
+                            <p>Transfer funds securely</p>
+                        </div>
+                        <div class="form-card">
+                            <form id="sendForm" class="wallet-form">
+                                <div class="input-group">
+                                    <label for="recipientAddress">Recipient Address</label>
+                                    <input type="text" id="recipientAddress" placeholder="Enter wallet address" required />
+                                </div>
+                                <div class="input-group">
+                                    <label for="sendAmount">Amount</label>
+                                    <div class="input-with-action">
+                                        <input type="number" id="sendAmount" placeholder="0.00" step="0.01" min="0.01" required />
+                                        <span class="currency">USD</span>
+                                    </div>
+                                </div>
+                                <div class="input-group">
+                                    <label for="sendNote">Note (Optional)</label>
+                                    <input type="text" id="sendNote" placeholder="Add a note to this transaction" />
+                                </div>
+                                <div class="form-summary">
+                                    <div class="summary-item">
+                                        <span>Available Balance</span>
+                                        <span id="availableBalance">$0.00</span>
+                                    </div>
+                                    <div class="summary-item">
+                                        <span>Network Fee</span>
+                                        <span>$0.00</span>
+                                    </div>
+                                    <div class="summary-item total">
+                                        <span>Total</span>
+                                        <span id="sendTotal">$0.00</span>
+                                    </div>
+                                </div>
+                                <button type="submit" class="btn btn-primary" id="sendBtn">
+                                    <span class="btn-content">
+                                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                                            <path d="M18 2L9 11M18 2L12 18L9 11M18 2L2 8L9 11" stroke="currentColor" stroke-width="2"/>
+                                        </svg>
+                                        Send Money
+                                    </span>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Receive Page -->
+                    <div class="page" id="page-receive">
+                        <div class="page-header">
+                            <h1>Receive Money</h1>
+                            <p>Share your wallet address</p>
+                        </div>
+                        <div class="receive-card">
+                            <div class="qr-code-placeholder" id="qrCode">
+                                <svg width="200" height="200" viewBox="0 0 200 200" fill="none">
+                                    <rect width="200" height="200" fill="white"/>
+                                    <text x="100" y="100" text-anchor="middle" fill="#000" font-size="14">QR Code</text>
+                                </svg>
+                            </div>
+                            <div class="wallet-address-display">
+                                <div class="address-label">Your Wallet Address</div>
+                                <div class="address-value" id="receiveAddress">Generating...</div>
+                                <button class="btn-copy" id="copyAddressBtn">
+                                    <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+                                        <path d="M8 2C7.4 2 7 2.4 7 3V5H5C3.9 5 3 5.9 3 7V17C3 18.1 3.9 19 5 19H13C14.1 19 15 18.1 15 17V15H17C17.6 15 18 14.6 18 14V4C18 2.9 17.1 2 16 2H8Z" stroke="currentColor" stroke-width="2"/>
+                                    </svg>
+                                    Copy Address
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Transactions Page -->
+                    <div class="page" id="page-transactions">
+                        <div class="page-header">
+                            <h1>Transaction History</h1>
+                            <p>View all your transactions</p>
+                        </div>
+                        <div class="transactions-list" id="transactionsList">
+                            <div class="empty-state">
+                                <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+                                    <circle cx="32" cy="32" r="30" stroke="currentColor" stroke-width="2" opacity="0.3"/>
+                                    <path d="M32 20V32M32 32L26 26M32 32L38 26" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                </svg>
+                                <p>No transactions yet</p>
+                                <p class="empty-subtitle">Your transaction history will appear here</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Settings Page -->
+                    <div class="page" id="page-settings">
+                        <div class="page-header">
+                            <h1>Settings</h1>
+                            <p>Manage your account and security</p>
+                        </div>
+                        <div class="settings-sections">
+                            <div class="settings-section">
+                                <h3>Account</h3>
+                                <div class="settings-item">
+                                    <div class="settings-info">
+                                        <div class="settings-label">Username</div>
+                                        <div class="settings-value" id="settingsUsername"></div>
+                                    </div>
+                                </div>
+                                <div class="settings-item">
+                                    <div class="settings-info">
+                                        <div class="settings-label">Wallet Address</div>
+                                        <div class="settings-value small" id="settingsWalletAddress"></div>
+                                    </div>
+                                    <button class="btn-icon" id="copyWalletBtn" title="Copy">
+                                        <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+                                            <path d="M8 2C7.4 2 7 2.4 7 3V5H5C3.9 5 3 5.9 3 7V17C3 18.1 3.9 19 5 19H13C14.1 19 15 18.1 15 17V15H17C17.6 15 18 14.6 18 14V4C18 2.9 17.1 2 16 2H8Z" stroke="currentColor" stroke-width="2"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="settings-section">
+                                <h3>Security</h3>
+                                <div class="settings-item">
+                                    <div class="settings-info">
+                                        <div class="settings-label">Authentication Method</div>
+                                        <div class="settings-value">Fingerprint (WebAuthn)</div>
+                                    </div>
+                                    <span class="badge success">Active</span>
+                                </div>
+                                <div class="settings-item">
+                                    <div class="settings-info">
+                                        <div class="settings-label">Last Login</div>
+                                        <div class="settings-value" id="lastLoginTime"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="settings-section">
+                                <h3>Preferences</h3>
+                                <div class="settings-item">
+                                    <div class="settings-info">
+                                        <div class="settings-label">Currency</div>
+                                        <div class="settings-value">USD ($)</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
