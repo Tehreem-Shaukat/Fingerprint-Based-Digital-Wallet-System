@@ -1,14 +1,22 @@
 const fs = require('fs');
 const path = require('path');
 
-// Load .env file only if it exists (for local development)
-// Railway and other platforms will provide environment variables directly
+// Load environment variables from common locations (local dev).
+// Prefer `backend/.env`, but also support a root `.env` for older setups.
 try {
-    const envPath = path.resolve(__dirname, '../.env');
-    if (fs.existsSync(envPath)) {
-        require('dotenv').config({ path: envPath });
+    const dotenv = require('dotenv');
+    const candidateEnvPaths = [
+        path.resolve(__dirname, '.env'),
+        path.resolve(__dirname, '../.env'),
+    ];
+
+    for (const envPath of candidateEnvPaths) {
+        if (fs.existsSync(envPath)) {
+            dotenv.config({ path: envPath });
+            break;
+        }
     }
-} catch (err) {
+} catch {
     // Silent fail - environment variables may be set by platform
 }
 

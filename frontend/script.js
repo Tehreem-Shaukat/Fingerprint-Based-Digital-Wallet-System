@@ -95,8 +95,8 @@ const headerUsername = document.getElementById('headerUsername');
 document.addEventListener('DOMContentLoaded', async () => {
     // Check if WebAuthn is supported
     if (!isWebAuthnSupported()) {
-        showMessage('WebAuthn is not supported in this browser. Please use Chrome, Edge, Firefox, or Safari.', 'error');
-        return;
+        // Show a warning but still allow the UI to work
+        showMessage('WebAuthn is not fully supported in this browser. Some fingerprint features may not work, but the wallet UI is still available.', 'error');
     }
 
     // Check if using valid domain for WebAuthn
@@ -294,10 +294,11 @@ async function initializeWallet(username) {
 
         if (response.ok) {
             const data = await response.json();
+            const wallet = data && data.wallet ? data.wallet : data;
             walletData = {
-                balance: data.balance || 0,
-                address: data.address || generateWalletAddress(username),
-                transactions: data.transactions || []
+                balance: wallet.balance || 0,
+                address: wallet.address || generateWalletAddress(username),
+                transactions: wallet.transactions || []
             };
             updateWalletUI();
             return;
